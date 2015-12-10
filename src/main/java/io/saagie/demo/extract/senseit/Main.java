@@ -1,18 +1,16 @@
 package io.saagie.demo.extract.senseit;
 
-
-import au.com.bytecode.opencsv.CSVWriter;
 import com.github.kevinsawicki.http.HttpRequest;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import io.saagie.demo.extract.senseit.dto.History;
 import io.saagie.demo.extract.senseit.dto.SenseIT;
-import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.log4j.Logger;
 
-import java.io.*;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Iterator;
 
@@ -37,46 +35,53 @@ public class Main {
       String accesskey=args[2];
       String hdfsuri = args[3];
 
+      int i=1;
+      while(getDataAndStoretoHdfs(i,deviceid, sensorid, accesskey, hdfsuri)) { i++;};
 
+      logger.info("Done.");
+
+
+   }
+
+   private static boolean getDataAndStoretoHdfs(int page,String deviceid, String sensorid, String accesskey, String hdfsuri) throws Exception {
       SenseIT senseIT=null;
-      logger.info("Calling SenseIT API...");
-      HttpRequest res=HttpRequest.get("https://api.sensit.io/v1/devices/"+deviceid+"/sensors/"+sensorid)
+      logger.info("Calling SenseIT API for page "+page);
+      HttpRequest res=HttpRequest.get("https://api.sensit.io/v1/devices/"+deviceid+"/sensors/"+sensorid+"?page="+page)
               .authorization("Bearer "+accesskey)
               .accept("application/json");
       String body=res.body();
+
+      //logger.debug(body);
 
       senseIT=new Gson().fromJson(body, new TypeToken<SenseIT>() { }.getType());
       String jsondata=new Gson().toJson(senseIT.data);
 
 
-      String csv = buildCSV(deviceid, sensorid, senseIT);
+      if (senseIT.data.history != null && senseIT.data.history.size()>0) {
+         String csv = buildCSV(deviceid, sensorid, senseIT);
 
-      ByteArrayOutputStream csv_os = buildCSV2(deviceid, sensorid, senseIT);
+         // Create Directories
+         logger.debug("Create directory");
+         FileSystem fs = HdfsUtils.getFileSystemFromUri(hdfsuri);
+         Path directoryraw = HdfsUtils.createDirectory(fs, "/iot/sigfox/senseit/raw");
+         Path directorycsv = HdfsUtils.createDirectory(fs, "/iot/sigfox/senseit/csv");
 
-      // Create Directories
-      logger.debug("Create directory");
-      FileSystem fs = HdfsUtils.getFileSystemFromUri(hdfsuri);
-      Path directoryraw = HdfsUtils.createDirectory(fs, "/iot/sigfox/senseit/raw");
-      Path directorycsv = HdfsUtils.createDirectory(fs, "/iot/sigfox/senseit/csv");
-      Path directorycsv2 = HdfsUtils.createDirectory(fs, "/iot/sigfox/senseit/csv2");
+         String filename = deviceid + "-" + sensorid + "-" + senseIT.data.sensor_type + "-"+page+"-" + (new Date()).getTime();
 
+         logger.debug("Create file");
+         // Creating a file in HDFS
+         HdfsUtils.createFile(fs, directoryraw, filename + ".json", jsondata);
 
-      String filename=deviceid+"-"+sensorid+"-"+senseIT.data.sensor_type+"-"+(new Date()).getTime();
+         logger.info("Import done of raw file : " + filename + ".json");
 
-      logger.debug("Create file");
-      // Creating a file in HDFS
-      HdfsUtils.createFile(fs, directoryraw, filename+".json", jsondata);
+         HdfsUtils.createFile(fs, directorycsv, filename + ".csv", csv.getBytes());
 
-      logger.info("Import done of raw file : "+filename+".json");
-
-      HdfsUtils.createFile(fs, directorycsv, filename+".csv", csv.getBytes());
-      HdfsUtils.createFile(fs, directorycsv, filename+".csv", csv_os.toByteArray());
-
-      logger.info("Import done of csv file : "+filename+".csv");
-
-
-      logger.info("Done.");
-
+         logger.info("Import done of csv file : " + filename + ".csv");
+         return true;
+      } else {
+         logger.info("No more data.");
+         return false;
+      }
 
    }
 
@@ -84,27 +89,23 @@ public class Main {
       logger.info("Building CSV...");
       String csv="device;sensor;sensor_type;date;data;value\n";
 
+      SimpleDateFormat sdfin=new SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'");
+      SimpleDateFormat sdfout=new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
       Iterator<History> it_his=senseIT.data.history.iterator();
       while(it_his.hasNext()) {
          History his=it_his.next();
-         csv+=deviceid+ SEP +sensorid+ SEP +senseIT.data.sensor_type+ SEP +his.date+ SEP +his.data+ SEP +his.getDataInDouble()+"\n";
+         String date=null;
+         try {
+            date=sdfout.format(sdfin.parse(his.date));
+         } catch (ParseException e) {
+            e.printStackTrace();
+         }
+
+         csv+=deviceid+ SEP +sensorid+ SEP +senseIT.data.sensor_type+ SEP +date+ SEP +his.data+ SEP +his.getDataInDouble()+"\n";
       }
+      //logger.debug(csv);
       return csv;
    }
 
-   private static ByteArrayOutputStream buildCSV2(String deviceid, String sensorid, SenseIT senseIT) throws IOException {
-      logger.info("Building CSV...");
-
-      ByteArrayOutputStream os = new ByteArrayOutputStream();
-      CSVWriter writer = new CSVWriter(new OutputStreamWriter(os,"UTF-8"));
-      writer.writeNext(new String[]{"device","sensor","sensor_type","date","data","value"});
-
-      Iterator<History> it_his=senseIT.data.history.iterator();
-      while(it_his.hasNext()) {
-         History his=it_his.next();
-         writer.writeNext(new String[]{deviceid,sensorid,senseIT.data.sensor_type,his.date,his.data,his.getDataInDouble().toString()});
-      }
-      writer.flush();
-      return os;
-   }
 }
