@@ -9,15 +9,13 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.log4j.Logger;
 
+
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Iterator;
 
 
-/**
- * Created by youen on 02/12/2015.
- */
 public class Main {
 
 
@@ -49,9 +47,13 @@ public class Main {
       HttpRequest res=HttpRequest.get("https://api.sensit.io/v1/devices/"+deviceid+"/sensors/"+sensorid+"?page="+page)
               .authorization("Bearer "+accesskey)
               .accept("application/json");
+       //Do NOT reproduce at home - bad ssl config on senseit api
+       res.trustAllCerts();
+       res.trustAllHosts();
+
       String body=res.body();
 
-      //logger.debug(body);
+      logger.debug(body);
 
       senseIT=new Gson().fromJson(body, new TypeToken<SenseIT>() { }.getType());
       String jsondata=new Gson().toJson(senseIT.data);

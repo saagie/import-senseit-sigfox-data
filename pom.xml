@@ -71,6 +71,16 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>io.saagie</groupId>
+                <artifactId>saagie-maven-plugin</artifactId>
+                <version>1.0.2</version>
+                <configuration>
+                    <platformId>4</platformId>
+                    <jobName>Import from Sense.it/Sigfox</jobName>
+                    <jobCategory>extract</jobCategory>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
