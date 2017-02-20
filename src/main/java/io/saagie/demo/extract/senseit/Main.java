@@ -47,9 +47,9 @@ public class Main {
       HttpRequest res=HttpRequest.get("https://api.sensit.io/v1/devices/"+deviceid+"/sensors/"+sensorid+"?page="+page)
               .authorization("Bearer "+accesskey)
               .accept("application/json");
-       //Do NOT reproduce at home - bad ssl config on senseit api
-       res.trustAllCerts();
-       res.trustAllHosts();
+      //Do NOT reproduce at home - bad ssl config on senseit api
+      res.trustAllCerts();
+      res.trustAllHosts();
 
       String body=res.body();
 

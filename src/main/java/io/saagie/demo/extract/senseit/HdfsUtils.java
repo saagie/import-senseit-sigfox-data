@@ -42,14 +42,14 @@ public class HdfsUtils {
     public static void createFile(FileSystem fs, Path newFolderPath, String fileName, String data) throws IOException {
         Path path = new Path(newFolderPath + "/" + fileName);
         FSDataOutputStream os=fs.create(path);
-        fs.setPermission(path, new FsPermission((short) 777));
+        fs.setPermission(path, FsPermission.valueOf("drwxrwxrwx"));
         os.writeChars(data);
     }
 
     public static void createFile(FileSystem fs, Path newFolderPath, String fileName, byte[] data) throws IOException {
         Path path = new Path(newFolderPath + "/" + fileName);
         FSDataOutputStream os=fs.create(path);
-        fs.setPermission(path, new FsPermission((short) 777));
+        fs.setPermission(path, FsPermission.valueOf("drwxrwxrwx"));
         os.write(data);
     }
 
